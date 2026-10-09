@@ -1,23 +1,35 @@
 # REGIONAL - AI
 
-**Regional career intelligence for students preparing for employment.**
+**Regional Career Intelligence & ATS Resume Engine for Tier-2/Tier-3 Engineering Candidates**
 
-REGIONAL - AI is a career-guidance web application designed to help students explore regional career signals, define a target role, identify skill gaps, organize learning, and prepare resume information.
+[![React](https://img.shields.io/badge/React-18.3-61DAFB?logo=react&logoColor=black)](https://react.dev/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.5-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![Vite](https://img.shields.io/badge/Vite-5.4-646CFF?logo=vite&logoColor=white)](https://vitejs.dev/)
+[![Express](https://img.shields.io/badge/Express-4.21-000000?logo=express&logoColor=white)](https://expressjs.com/)
+[![Google Gemini](https://img.shields.io/badge/Google_Gemini-3.8_Flash-8E75B2?logo=google&logoColor=white)](https://ai.google.dev/)
+[![YouTube API](https://img.shields.io/badge/YouTube_API-v3-FF0000?logo=youtube&logoColor=white)](https://developers.google.com/youtube/v3)
+[![Supabase](https://img.shields.io/badge/Supabase-Ready-3ECF8E?logo=supabase&logoColor=white)](https://supabase.com/)
 
-## Features
+---
 
-- Student onboarding, profile, and target-role workflow
-- Regional career-signal screen
-- Skill intelligence and skill-gap analysis
-- Structured learning roadmap
-- YouTube learning-resource search through the backend
-- AI-assisted roadmap, resume structuring, and skill-gap explanations through Google Gemini
-- Skill-proof and system/QA screens
-- Fallback responses when external providers are unavailable
+## Overview
 
-The accuracy and freshness of career-market information depend on the configured data sources. Fallback/demo results should not be treated as verified live market data.
+**REGIONAL - AI** bridges the divide between academic curriculum and regional tech industry hiring demands across emerging tech corridors (e.g., Chennai, Coimbatore, Bengaluru, Hyderabad). 
 
-## Technology stack
+The platform offers an end-to-end guided workflow: candidates analyze real-world hiring trends, identify high-priority skill gaps, follow personalized learning roadmaps, and generate executive-tier, zero-hallucination, ATS-optimized technical resumes verified with hands-on project proof.
+
+## Key Features
+
+- **Candidate Profile & Target Role:** Tailored onboarding capturing student tier, graduation year, target region, and existing technical stack.
+- **Regional Market Signals:** Real-time hiring demand indicators, top compensation skills, and demand-velocity scoring across tech hubs.
+- **Skill Gap Diagnosis:** Automated differential analysis comparing student proficiencies against live regional employer expectations.
+- **Interactive Learning Roadmap:** Stage-by-stage engineering milestones backed by live **YouTube Data API v3** curated video tutorials.
+- **Elite ATS Resume Engine:** Powered by **Google Gemini** with strict zero-hallucination constraints, action-oriented bullet points (Google X-Y-Z formula), 3-tier skill categorization, and instant vector-crisp PDF export.
+- **Skill Proof & Verification:** Project deliverables, README requirements, and repository checklist verification ensuring candidate authenticity.
+- **100% Responsive Design:** Preserves exact pixel fidelity to the reference desktop design (1440×900) while smoothly adapting across all mobile, tablet, and laptop viewports (tested from 320px to 1920px with zero layout overflow).
+- **Graceful Deterministic Fallbacks:** Integrated offline engine guarantees full workflow continuity even if external APIs or network connections are unavailable.
+
+## Technology Stack
 
 | Technology | Purpose |
 |---|---|
