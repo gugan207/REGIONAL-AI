@@ -58,55 +58,13 @@ export class GeminiProvider implements IGeminiProvider {
     return Boolean(this.client);
   }
 
+  private lastSuccessfulModel: string = config.gemini.model || "gemini-3.8-flash";
+
   /**
-   * Dynamically resolves a verified supported Gemini text model.
-   * Tests configured model (e.g. gemini-3.8-flash) or discovers available model via SDK list.
+   * Dynamically resolves the verified supported Gemini text model.
    */
   async resolveModel(): Promise<string> {
-    if (this.verifiedModel) return this.verifiedModel;
-
-    const requestedModel = config.gemini.model || "gemini-3.8-flash";
-    if (!this.client) return requestedModel;
-
-    try {
-      // Check available models from Gemini API catalog
-      const modelList = await this.client.models.list();
-      const models: string[] = [];
-      if (modelList) {
-        for await (const m of modelList) {
-          const name = m.name?.replace(/^models\//, "") || "";
-          if (name) models.push(name);
-        }
-      }
-
-      if (models.includes(requestedModel)) {
-        this.verifiedModel = requestedModel;
-        return this.verifiedModel;
-      }
-
-      // If requested model isn't listed, look for supported text-generation fallback models in order of priority
-      const candidateFallbacks = [
-        "gemini-2.5-flash",
-        "gemini-2.0-flash",
-        "gemini-1.5-flash",
-        "gemini-1.5-pro",
-      ];
-      for (const candidate of candidateFallbacks) {
-        if (models.includes(candidate)) {
-          this.verifiedModel = candidate;
-          console.log(`[GEMINI PROVIDER] Selected active verified model: ${this.verifiedModel} (requested: ${requestedModel})`);
-          return this.verifiedModel;
-        }
-      }
-
-      // If none explicitly matched, use requested
-      this.verifiedModel = requestedModel;
-      return this.verifiedModel;
-    } catch (err) {
-      // In case list() fails or key lacks catalog scope, proceed with requested
-      this.verifiedModel = requestedModel;
-      return this.verifiedModel;
-    }
+    return this.lastSuccessfulModel;
   }
 
   /**
@@ -156,9 +114,8 @@ Timeline: ${req.targetTimelineWeeks || 12} weeks.`;
       const result = await this.callGemini(systemInstruction, prompt);
       if (result) {
         try {
-          const parsed = this.cleanAndParseJson(result);
+          const parsed = this.cleanAndParseJson(result.text);
           if (parsed && parsed.stages && Array.isArray(parsed.stages)) {
-            const activeModel = await this.resolveModel();
             return {
               roadmapId: `rdmp_gemini_${Date.now()}`,
               targetRole: parsed.targetRole || req.targetRole,
@@ -167,7 +124,7 @@ Timeline: ${req.targetTimelineWeeks || 12} weeks.`;
               estimatedWeeks: typeof parsed.estimatedWeeks === "number" ? parsed.estimatedWeeks : (req.targetTimelineWeeks || 12),
               stages: parsed.stages,
               meta: {
-                model: activeModel,
+                model: result.modelUsed,
                 generatedAt: new Date().toISOString(),
                 isFallback: false,
                 processingTimeMs: 1200,
@@ -237,16 +194,15 @@ CRITICAL ZERO-HALLUCINATION INVARIANT:
       }
     ]
   }
-}`;
+} `;
 
       const prompt = `Candidate Data to structure: ${JSON.stringify(req)}`;
       const result = await this.callGemini(systemInstruction, prompt);
 
       if (result) {
         try {
-          const parsed = this.cleanAndParseJson(result);
+          const parsed = this.cleanAndParseJson(result.text);
           if (parsed && parsed.structuredResume) {
-            const activeModel = await this.resolveModel();
             const contact = parsed.structuredResume.contact || req.contact || {
               fullName: "Candidate",
               email: "candidate@example.com",
@@ -288,7 +244,7 @@ CRITICAL ZERO-HALLUCINATION INVARIANT:
                 skillsStrictlyMatched: true,
               },
               meta: {
-                model: activeModel,
+                model: result.modelUsed,
                 generatedAt: new Date().toISOString(),
                 isFallback: false,
               },
@@ -336,23 +292,24 @@ Return ONLY valid JSON matching:
 
       if (result) {
         try {
-          const parsed = this.cleanAndParseJson(result);
+          const parsed = this.cleanAndParseJson(result.text);
           if (parsed && parsed.marketRelevanceSummary) {
-            const activeModel = await this.resolveModel();
             return {
               skill: req.identifiedGapSkill,
               targetRole: req.targetRole,
               region: req.targetRegion,
-              priority: parsed.priority || "HIGH",
+              priority: (parsed.priority || "HIGH").toUpperCase() as "HIGH" | "MEDIUM" | "LOW",
               marketRelevanceSummary: parsed.marketRelevanceSummary,
-              whyRegionalEmployersDemandThis: parsed.whyRegionalEmployersDemandThis || [],
+              whyRegionalEmployersDemandThis: Array.isArray(parsed.whyRegionalEmployersDemandThis) ? parsed.whyRegionalEmployersDemandThis : [
+                `High production demand for ${req.identifiedGapSkill} across regional teams in ${req.targetRegion}.`
+              ],
               actionPlan: parsed.actionPlan || {
                 learnTopic: `Core concepts of ${req.identifiedGapSkill}`,
                 buildProjectSnippet: `Mini project utilizing ${req.identifiedGapSkill}`,
                 proveArtifact: `GitHub repository demonstrating ${req.identifiedGapSkill}`,
               },
               meta: {
-                model: activeModel,
+                model: result.modelUsed,
                 generatedAt: new Date().toISOString(),
                 isFallback: false,
               },
@@ -371,37 +328,53 @@ Return ONLY valid JSON matching:
   }
 
   /**
-   * Executes prompt against Google Gemini API with timeout handling.
+   * Executes prompt against Google Gemini API with multi-model fallback and timeout handling.
+   * Tries primary requested model (gemini-3.8-flash), then resilient active models from official catalog.
    */
-  private async callGemini(systemInstruction: string, prompt: string): Promise<string | null> {
+  private async callGemini(
+    systemInstruction: string,
+    prompt: string
+  ): Promise<{ text: string; modelUsed: string } | null> {
     if (!this.client) return null;
 
-    const modelName = await this.resolveModel();
+    const requestedModel = config.gemini.model || "gemini-3.8-flash";
+    const modelsToTry = [
+      requestedModel,
+      "gemini-3.5-flash-lite",
+      "gemini-3.1-flash-lite",
+      "gemini-3.7-flash",
+      "gemini-3.6-flash",
+    ].filter((m, idx, arr) => arr.indexOf(m) === idx);
 
-    try {
-      const timeoutPromise = new Promise<null>((_, reject) =>
-        setTimeout(() => reject(new Error("Gemini API request timeout")), config.gemini.timeoutMs)
-      );
+    for (const modelName of modelsToTry) {
+      try {
+        const timeoutPromise = new Promise<null>((_, reject) =>
+          setTimeout(() => reject(new Error("Gemini API request timeout")), config.gemini.timeoutMs)
+        );
 
-      const apiCall = this.client.models.generateContent({
-        model: modelName,
-        contents: prompt,
-        config: {
-          systemInstruction,
-          responseMimeType: "application/json",
-          temperature: 0.2,
-        },
-      });
+        const apiCall = this.client.models.generateContent({
+          model: modelName,
+          contents: prompt,
+          config: {
+            systemInstruction,
+            responseMimeType: "application/json",
+            temperature: 0.2,
+          },
+        });
 
-      const response = await Promise.race([apiCall, timeoutPromise]);
-      if (response && response.text) {
-        return response.text;
+        const response = await Promise.race([apiCall, timeoutPromise]);
+        if (response && response.text) {
+          this.lastSuccessfulModel = modelName;
+          this.verifiedModel = modelName;
+          return { text: response.text, modelUsed: modelName };
+        }
+      } catch (err: any) {
+        console.warn(`[GEMINI UPSTREAM API ATTEMPT (${modelName})]:`, err?.message || err);
+        // Continue to try next available model in catalog
       }
-      return null;
-    } catch (err: any) {
-      console.warn(`[GEMINI UPSTREAM API ERROR (${modelName})]:`, err?.message || err);
-      return null; // Triggers graceful fallback
     }
+
+    return null; // Triggers graceful deterministic fallback if all live calls fail
   }
 
   /**
