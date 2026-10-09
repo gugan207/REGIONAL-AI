@@ -1,0 +1,55 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Production build
+dist/
+dist-ssr/
+build/
+*.local
+
+# Environment & Secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.token
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Editor / OS
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+.DS_Store
+Thumbs.db
+
+# Figma cache and scratch files
+figma_*.json
+*.cjs
+*.txt
+test_figma.js
+get_login_node.js
+inspect_frame.js
+extract_effects.js
+extract_full_specs.js
+get_onboarding_node.js
+inspect_auth_children.js
+inspect_hero_children.js
+inspect_preview_details.js
+verify_figma_fidelity.js
+
+# Temporary & browser artifacts
+chrome_*.png
+temp_chrome_profile/
