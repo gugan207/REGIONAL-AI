@@ -42,44 +42,183 @@ The platform offers an end-to-end guided workflow: candidates analyze real-world
 | Figma | UI/UX design workflow |
 | GitHub | Source control and collaboration |
 
-**Supabase note:** Confirm that the Supabase client, migrations, authentication, and RLS policies are present in the branch you deploy before describing Supabase-backed authentication or persistence as live. They are not listed in the current committed frontend package manifest.
+## Architecture & Data Flow
 
-## Architecture
+```mermaid
+graph TB
+    subgraph Client["Frontend Client (React 18 + Vite :3000)"]
+        UI[12 Workflow Screens]
+        Store[Candidate State & Profile Store]
+        APIClient[Frontend API Client]
+        SupaClient[Supabase Client + RLS]
+    end
 
-The frontend uses React and TypeScript. It sends API requests to the Express backend. The backend connects to Google Gemini for AI-assisted career workflows and the YouTube Data API for learning-resource search. During local development, Vite proxies /api requests to http://localhost:5000.
+    subgraph ReverseProxy["Vite Dev Server Reverse Proxy"]
+        Proxy["/api/* -> http://localhost:5000"]
+    end
 
-## Application screens
+    subgraph Server["Backend Express API (:5000)"]
+        HealthRoute["/api/health"]
+        AIRoute["/api/ai (Roadmap, Resume, Skill Gap)"]
+        YTRoute["/api/youtube/search"]
+        Orchestrator[AI Service Orchestrator]
+        FallbackEngine[Deterministic Fallback Engine]
+        Cache[In-Memory Search Cache TTL 24h]
+    end
 
-1. Login
-2. Onboarding
-3. Target Role
-4. Skill Profile
-5. Regional Signal
-6. Dashboard
-7. Skill Intelligence
-8. Skill Gap
-9. Roadmap
-10. Resume Builder
-11. Skill Proof
-12. System & QA
+    subgraph External["External Cloud Providers & DB"]
+        Gemini["Google Gemini (gemini-3.8-flash)"]
+        YouTube["YouTube Data API v3"]
+        SupabaseDB["Supabase PostgreSQL (RLS Enabled)"]
+    end
 
-The implementation should remain aligned with the existing Figma design.
+    UI --> Store
+    Store --> APIClient
+    Store --> SupaClient
+    APIClient --> Proxy
+    Proxy --> Server
+    SupaClient -.->|Direct SDK| SupabaseDB
 
-## Repository structure
+    Server --> AIRoute
+    Server --> YTRoute
+    Server --> HealthRoute
 
-- public/ — public assets and logo
-- src/components/ — UI screens and components
-- src/services/apiClient.ts — frontend API client and fallback data
-- src/App.tsx — application navigation and state
-- server/src/providers/ — Gemini and YouTube provider adapters
-- server/src/routes/ — health, AI, and YouTube routes
-- server/src/services/ — backend services
-- server/src/utils/ — validation and response helpers
-- server/src/config.ts — backend environment configuration
-- docs/ — integration documentation and project reports
-- .env.example — backend environment template
-- package.json — frontend scripts and dependencies
-- vite.config.ts — Vite configuration and API proxy
+    AIRoute --> Orchestrator
+    Orchestrator -->|Live API| Gemini
+    Orchestrator -.->|Timeout / Quota Fallback| FallbackEngine
+
+    YTRoute --> Cache
+    Cache -->|Cache Miss| YouTube
+    Cache -.->|Offline Fallback| FallbackEngine
+```
+
+---
+
+## Candidate Journey Flow
+
+The platform guides candidates through an end-to-end 12-screen progression from regional discovery to verified career readiness:
+
+```mermaid
+flowchart LR
+    A["01. Login"] --> B["02. Onboarding"]
+    B --> C["03. Target Role"]
+    C --> D["04. Skill Profile"]
+    D --> E["05. Regional Signal"]
+    E --> F["06. Dashboard"]
+    F --> G["07. Skill Intel"]
+    G --> H["08. Skill Gap"]
+    H --> I["09. Roadmap"]
+    I --> J["10. Resume Builder"]
+    J --> K["11. Skill Proof"]
+    K --> L["12. System QA"]
+
+    classDef screen fill:#F2F0FF,stroke:#5B50E8,stroke-width:2px,color:#17171B;
+    class A,B,C,D,E,F,G,H,I,J,K,L screen;
+```
+
+### Detailed Screen Workflow:
+1. **Login (`#login`):** Authentication entry point with demo session mode and Supabase integration.
+2. **Onboarding (`#onboarding`):** Captures college tier, graduation year, and preferred regional work cluster.
+3. **Target Role (`#target-role`):** Selects engineering career track (e.g., *Backend Developer*, *Full-Stack Engineer*).
+4. **Skill Profile (`#skill-profile`):** Tags verified foundational competencies and optional resume source upload.
+5. **Regional Signal (`#regional-signal`):** Analyzes regional industry demand velocity and median compensation benchmarks.
+6. **Dashboard (`#dashboard`):** High-level view of candidate readiness, active priority skills, and hiring index.
+7. **Skill Intelligence (`#skill-intelligence`):** Deep dive into regional skill demand distributions and employer requirements.
+8. **Skill Gap (`#skill-gap`):** Differential diagnosis comparing candidate abilities against market benchmarks.
+9. **Roadmap (`#roadmap`):** Stage-by-stage learning milestones integrated with live YouTube learning videos.
+10. **Resume Builder (`#resume-builder`):** Generates executive-tier, zero-hallucination ATS resumes with Google X-Y-Z bullet points and vector PDF export.
+11. **Skill Proof (`#skill-proof`):** Project deliverables, code requirements, and repository verification checklist.
+12. **System QA (`#system-qa`):** Complete prototype auditing, compliance checklists, and system readiness verification.
+
+---
+
+## Database Architecture (Supabase PostgreSQL)
+
+All tables enforce **Row Level Security (RLS)** ensuring candidate isolation (`auth.uid() = id`):
+
+```mermaid
+erDiagram
+    AUTH_USERS ||--o{ CANDIDATE_PROFILES : "owns"
+    AUTH_USERS ||--o{ CANDIDATE_PROGRESS : "tracks"
+    AUTH_USERS ||--o{ CANDIDATE_ROADMAPS : "generates"
+    AUTH_USERS ||--o{ CANDIDATE_RESUMES : "exports"
+    AUTH_USERS ||--o{ CANDIDATE_SKILL_PROOFS : "verifies"
+
+    CANDIDATE_PROFILES {
+        uuid id PK,FK
+        text education
+        text year
+        text region
+        text target_role
+        jsonb selected_skills
+        text gap_skill
+        int profile_completion
+        timestamptz updated_at
+    }
+
+    CANDIDATE_PROGRESS {
+        uuid id PK,FK
+        text current_stage
+        int readiness_percentage
+        text last_visited_screen
+        jsonb saved_application_state
+        timestamptz updated_at
+    }
+
+    CANDIDATE_ROADMAPS {
+        uuid id PK,FK
+        text title
+        jsonb roadmap_data
+        timestamptz updated_at
+    }
+
+    CANDIDATE_RESUMES {
+        uuid id PK,FK
+        text resume_title
+        jsonb structured_content
+        text file_path
+        timestamptz updated_at
+    }
+
+    CANDIDATE_SKILL_PROOFS {
+        uuid id PK,FK
+        text skill_name
+        text target_role
+        text region
+        text verification_status
+        int confidence_score
+        timestamptz updated_at
+    }
+```
+
+---
+
+## Repository Structure
+
+```
+REGIONAL-AI/
+├── public/                 # Favicons, web manifest, static SVG assets
+├── src/
+│   ├── components/         # 12 core responsive workflow screens
+│   ├── services/           # apiClient.ts (HTTP client + fallback) & supabaseClient.ts
+│   ├── App.tsx             # Main client orchestrator, hash routing & global state
+│   ├── index.css           # Design tokens, responsive utilities & media queries
+│   └── main.tsx            # React root mount
+├── server/
+│   ├── src/
+│   │   ├── providers/      # Gemini provider (LLM) & YouTube provider
+│   │   ├── routes/         # Express endpoints (/api/ai, /api/youtube, /api/health)
+│   │   ├── services/       # AI service orchestrator & caching layer
+│   │   ├── types/          # Standardized API response types
+│   │   └── utils/          # Deterministic fallback engine & input validation
+│   ├── package.json        # Server dependencies
+│   └── tsconfig.json       # Server TypeScript configuration
+├── tests/                  # End-to-end and unit test suites
+├── docs/                   # Architectural blueprints & verification reports
+├── supabase/               # Database migrations (001-005) & RLS policies
+├── package.json            # Root frontend dependencies & scripts
+└── vite.config.ts          # Vite build config & proxy to :5000
+```
 
 ## Requirements
 
