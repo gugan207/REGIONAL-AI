@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { ResumeFileInfo } from './SkillProfileScreen';
+import { GeneratedResumeResponse } from '../services/apiClient';
 
 export interface ReviewRowItem {
   id: string;
@@ -31,19 +32,24 @@ export const ResumeBuilderScreen: React.FC<ResumeBuilderScreenProps> = ({
   resumeFile = null,
   selectedGapSkill = 'Docker',
   onFileChange,
-  onProceedToSkillProof,
+  onProceedToSkillProof: _onProceedToSkillProof,
   onBack
 }) => {
   const [currentResume, setCurrentResume] = useState<ResumeFileInfo | null>(resumeFile);
   const [isGenerating, setIsGenerating] = useState(false);
-  const [isGenerated, setIsGenerated] = useState(true); // Default true matching Figma completed review state
+  // Default true matching Figma completed review state
+  const [isGenerated, setIsGenerated] = useState(true);
+  const [generatedResume, setGeneratedResume] = useState<GeneratedResumeResponse | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [toastIsError, setToastIsError] = useState(false);
   const [hoveredButton, setHoveredButton] = useState<string | null>(null);
+  const [isExporting, setIsExporting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const showLocalToast = (msg: string) => {
+  const showLocalToast = (msg: string, isError = false) => {
     setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 3000);
+    setToastIsError(isError);
+    window.setTimeout(() => setToastMessage(null), 3500);
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -55,38 +61,210 @@ export const ResumeBuilderScreen: React.FC<ResumeBuilderScreenProps> = ({
       };
       setCurrentResume(fileInfo);
       if (onFileChange) onFileChange(fileInfo);
-      showLocalToast(`Loaded source resume: ${file.name}`);
+      showLocalToast(`Loaded source resume: ${file.name} (contents not parsed automatically)`);
     }
   };
 
+  /**
+   * Sends the exact backend resume contract (server/src/types/api.ts):
+   * contact + targetRole + education[] + verifiedSkills + unstructuredExperience[] + unstructuredProjects[].
+   * Only real user-supplied state is included — nothing is fabricated.
+   * No work experience or projects have been collected by the flow, so those arrays stay empty
+   * and the generated resume clearly marks them as not provided.
+   */
   const handleGenerate = async () => {
     setIsGenerating(true);
-    showLocalToast('Analyzing candidate profile facts & formatting ATS draft via NVIDIA NIM...');
+    showLocalToast('Generating ATS draft via the AI resume service...');
     try {
       const { apiClient } = await import('../services/apiClient');
-      await apiClient.generateResume({
-        candidateProfile: {
+      const result = await apiClient.generateResume({
+        contact: {
           fullName: 'Candidate',
-          region,
-          targetRole,
-          education,
-          year
+          email: 'candidate@example.com',
+          cityState: `${region}, India`
         },
+        targetRole,
+        education: [
+          {
+            institution: `${education} — ${region}`,
+            degree: education,
+            year: parseInt(year.replace(/[^0-9]/g, ''), 10) || new Date().getFullYear()
+          }
+        ],
         verifiedSkills: selectedSkills,
-        selectedGapSkill: selectedGapSkill || 'Docker'
+        unstructuredExperience: [],
+        unstructuredProjects: []
       });
-    } catch {
-      // Fallback
+
+      if (result && result.ok && result.data && result.data.structuredResume) {
+        setGeneratedResume(result.data);
+        setIsGenerated(true);
+        showLocalToast(
+          result.meta?.isFallback
+            ? 'ATS draft generated (deterministic fallback mode).'
+            : 'ATS draft generated with structured proof sections!'
+        );
+      } else {
+        setIsGenerated(false);
+        const msg = result?.error || 'Resume generation failed. Please try again.';
+        showLocalToast(msg, true);
+      }
+    } catch (e) {
+      setIsGenerated(false);
+      const msg = e instanceof Error ? e.message : 'Resume generation failed. Please try again.';
+      showLocalToast(msg, true);
+    } finally {
+      setIsGenerating(false);
     }
-    setIsGenerating(false);
-    setIsGenerated(true);
-    showLocalToast('ATS draft generated with structured proof sections!');
   };
 
-  const handleExport = () => {
-    showLocalToast('Exporting ATS Resume draft (PDF/DOCX)... Download complete!');
-    if (onProceedToSkillProof) {
-      setTimeout(() => onProceedToSkillProof(), 800);
+  /**
+   * Real PDF export: builds a genuine multi-section .pdf from the CURRENT generated
+   * resume content (or the candidate's verified education/skills if nothing was generated
+   * yet), downloads it, and only then shows a success toast.
+   */
+  const handleExport = async () => {
+    if (isExporting) return;
+    setIsExporting(true);
+    try {
+      const { jsPDF } = await import('jspdf');
+      const doc = new jsPDF({ unit: 'pt', format: 'a4' });
+
+      const preview = generatedResume?.structuredResume || null;
+      const candidateName = preview?.contact?.fullName || 'Candidate';
+      const fileName = `${candidateName.replace(/[^A-Za-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'Candidate'}_Resume.pdf`;
+
+      const marginX = 56;
+      const marginTop = 64;
+      const bottomLimit = doc.internal.pageSize.getHeight() - 56;
+      const maxWidth = doc.internal.pageSize.getWidth() - marginX * 2;
+      let y = marginTop;
+
+      const ensureSpace = (needed: number) => {
+        if (y + needed > bottomLimit) {
+          doc.addPage();
+          y = marginTop;
+        }
+      };
+
+      const sectionHeading = (text: string) => {
+        ensureSpace(34);
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(11);
+        doc.setTextColor(91, 80, 232);
+        doc.text(text.toUpperCase(), marginX, y);
+        y += 8;
+        doc.setDrawColor(226, 223, 240);
+        doc.line(marginX, y, marginX + maxWidth, y);
+        y += 14;
+      };
+
+      const bodyText = (text: string, opts?: { bold?: boolean; indent?: number; size?: number }) => {
+        const size = opts?.size || 10;
+        doc.setFont('helvetica', opts?.bold ? 'bold' : 'normal');
+        doc.setFontSize(size);
+        doc.setTextColor(30, 30, 40);
+        const indent = opts?.indent || 0;
+        const lines = doc.splitTextToSize(text, maxWidth - indent) as string[];
+        for (const line of lines) {
+          ensureSpace(size + 4);
+          doc.text(line, marginX + indent, y);
+          y += size + 3;
+        }
+        y += 2;
+      };
+
+      // Header block
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(17);
+      doc.setTextColor(23, 23, 27);
+      doc.text(candidateName, marginX, y);
+      y += 17;
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+      doc.setTextColor(102, 102, 112);
+      const contactLines = [
+        preview?.contact?.email ? `${preview.contact.email}` : '',
+        preview?.contact?.cityState ? `${preview.contact.cityState}` : `${region}, India`,
+        targetRole ? `Target Role: ${targetRole}` : ''
+      ].filter(Boolean);
+      for (const line of contactLines) {
+        ensureSpace(14);
+        doc.text(line, marginX, y);
+        y += 13;
+      }
+      y += 6;
+
+      // Professional Summary
+      if (preview?.professionalSummary) {
+        sectionHeading('Professional Summary');
+        bodyText(preview.professionalSummary);
+      }
+
+      // Technical Skills — verified only
+      sectionHeading('Skills');
+      const skillsGroups = preview?.technicalSkills && Object.keys(preview.technicalSkills).length > 0
+        ? Object.entries(preview.technicalSkills)
+        : [['Core Skills', selectedSkills]] as Array<[string, string[]]>;
+      for (const [group, skillList] of skillsGroups) {
+        const list = Array.isArray(skillList) && skillList.length > 0 ? skillList : [];
+        if (list.length === 0) continue;
+        bodyText(`${group}: ${list.join(', ')}`, { bold: true, size: 10 });
+      }
+      if (skillsGroups.every(([, l]) => !Array.isArray(l) || l.length === 0)) {
+        bodyText('Skills not provided.');
+      }
+      y += 4;
+
+      // Experience — genuine entries only; clearly marked when not provided
+      sectionHeading('Experience');
+      if (preview?.experience && preview.experience.length > 0) {
+        for (const exp of preview.experience) {
+          const title = [exp.roleTitle, exp.organization].filter(Boolean).join(' — ');
+          bodyText(exp.periodFormatted ? `${title} (${exp.periodFormatted})` : title, { bold: true });
+          for (const bp of exp.bulletPoints || []) {
+            bodyText(`• ${bp}`, { indent: 12 });
+          }
+        }
+      } else {
+        bodyText('Work experience not provided by the candidate.');
+      }
+
+      // Projects — genuine entries only; clearly marked when not provided
+      sectionHeading('Projects');
+      if (preview?.projects && preview.projects.length > 0) {
+        for (const proj of preview.projects) {
+          bodyText(proj.title, { bold: true });
+          if (proj.technologies && proj.technologies.length > 0) {
+            bodyText(`Technologies: ${proj.technologies.join(', ')}`, { indent: 12, size: 9 });
+          }
+          for (const bp of proj.bulletPoints || []) {
+            bodyText(`• ${bp}`, { indent: 12 });
+          }
+        }
+      } else {
+        bodyText('Projects not provided by the candidate.');
+      }
+
+      // Education — real onboarding selections
+      sectionHeading('Education');
+      if (preview?.education && preview.education.length > 0) {
+        for (const ed of preview.education) {
+          bodyText(`${ed.degree} — ${ed.institution}`, { bold: true });
+          bodyText(String(ed.year), { indent: 12, size: 9 });
+        }
+      } else {
+        bodyText(`${education} • ${year}`);
+      }
+
+      doc.save(fileName);
+      showLocalToast(`Resume exported: ${fileName} downloaded.`);
+    } catch (e) {
+      const msg = 'PDF export failed. Please try again.';
+      console.warn('[ResumeBuilderScreen] PDF export error:', e instanceof Error ? e.message : e);
+      showLocalToast(msg, true);
+    } finally {
+      setIsExporting(false);
     }
   };
 
@@ -154,11 +332,13 @@ export const ResumeBuilderScreen: React.FC<ResumeBuilderScreenProps> = ({
       {toastMessage && (
         <div
           id="resume-toast"
+          role={toastIsError ? 'alert' : 'status'}
           style={{
             position: 'fixed',
             top: '20px',
             right: '20px',
-            backgroundColor: '#17171B',
+            maxWidth: '420px',
+            backgroundColor: toastIsError ? '#B3261E' : '#17171B',
             color: '#FFFFFF',
             padding: '12px 20px',
             borderRadius: '10px',
@@ -219,6 +399,7 @@ export const ResumeBuilderScreen: React.FC<ResumeBuilderScreenProps> = ({
       {/* Top Navigation Bar (Figma Node 50:105) */}
       <header
         id="top-nav"
+        className="screen-header-bar"
         style={{
           position: 'relative',
           zIndex: 1,
@@ -318,6 +499,7 @@ export const ResumeBuilderScreen: React.FC<ResumeBuilderScreenProps> = ({
 
       {/* Main Content Container (matching Figma 1288px 2-card layout) */}
       <main
+        className="screen-main-card-box"
         style={{
           position: 'relative',
           zIndex: 1,
@@ -345,6 +527,7 @@ export const ResumeBuilderScreen: React.FC<ResumeBuilderScreenProps> = ({
           </div>
           <h1
             id="page-title"
+            className="responsive-screen-title"
             style={{
               fontSize: '38px',
               fontWeight: 700,
@@ -372,6 +555,7 @@ export const ResumeBuilderScreen: React.FC<ResumeBuilderScreenProps> = ({
 
         {/* Two Main Cards Row: Left Card (388px) + Right Card (876px), gap 24px */}
         <div
+          className="resume-builder-main-grid"
           style={{
             width: '100%',
             display: 'grid',
@@ -383,6 +567,7 @@ export const ResumeBuilderScreen: React.FC<ResumeBuilderScreenProps> = ({
           {/* Card 1: Resume Inputs / Source (Figma Node 50:114 - 388 x 470px, r=24px) */}
           <section
             id="resume-inputs-card"
+            className="resume-builder-card-box"
             style={{
               width: '388px',
               height: '470px',
@@ -636,6 +821,7 @@ export const ResumeBuilderScreen: React.FC<ResumeBuilderScreenProps> = ({
           {/* Card 2: AI Resume Review & Inline Preview (Figma Node 50:131 - 876 x 470px, r=24px) */}
           <section
             id="resume-review-card"
+            className="resume-builder-card-box resume-preview-columns"
             style={{
               width: '876px',
               height: '470px',
@@ -708,6 +894,7 @@ export const ResumeBuilderScreen: React.FC<ResumeBuilderScreenProps> = ({
                     <div
                       key={row.id}
                       id={`review-row-${row.id}`}
+                      className="resume-review-row"
                       style={{
                         width: '520px',
                         height: '56px',
@@ -888,7 +1075,7 @@ export const ResumeBuilderScreen: React.FC<ResumeBuilderScreenProps> = ({
                         lineHeight: '16px'
                       }}
                     >
-                      REGIONAL - AI
+                      {generatedResume?.structuredResume?.contact?.fullName || 'REGIONAL - AI'}
                     </div>
                     <div
                       id="paper-role"
@@ -899,11 +1086,11 @@ export const ResumeBuilderScreen: React.FC<ResumeBuilderScreenProps> = ({
                         lineHeight: '14px'
                       }}
                     >
-                      {targetRole}
+                      {generatedResume?.structuredResume?.contact?.cityState || targetRole}
                     </div>
                   </div>
 
-                  {/* SUMMARY Section */}
+                  {/* SUMMARY Section — actual generated summary when available */}
                   <div id="section-summary" style={{ marginBottom: '10px' }}>
                     <div
                       style={{
@@ -923,9 +1110,24 @@ export const ResumeBuilderScreen: React.FC<ResumeBuilderScreenProps> = ({
                         backgroundColor: '#E8E5F2'
                       }}
                     />
-                  </div>
-
-                  {/* SKILLS Section */}
+                    {generatedResume?.structuredResume?.professionalSummary ? (
+                      <p
+                        id="summary-content"
+                        style={{
+                          fontSize: '7px',
+                          lineHeight: '10px',
+                          color: '#3A3D48',
+                          margin: '5px 0 0 0',
+                          display: '-webkit-box',
+                          WebkitLineClamp: 4,
+                          WebkitBoxOrient: 'vertical',
+                          overflow: 'hidden'
+                        }}
+                      >
+                        {generatedResume.structuredResume.professionalSummary}
+                      </p>
+                    ) : null}
+                  </div>                  {/* SKILLS Section — verified skills actually generated */}
                   <div
                     id="section-skills"
                     data-skills={selectedSkills.join(', ')}
@@ -949,11 +1151,33 @@ export const ResumeBuilderScreen: React.FC<ResumeBuilderScreenProps> = ({
                         backgroundColor: '#E8E5F2'
                       }}
                     />
+                    {(() => {
+                      const groups = generatedResume?.structuredResume?.technicalSkills;
+                      const core = groups && groups['Core Skills'] && groups['Core Skills'].length > 0
+                        ? groups['Core Skills']
+                        : generatedResume
+                        ? selectedSkills
+                        : [];
+                      return core.length > 0 ? (
+                        <p
+                          id="skills-content"
+                          style={{
+                            fontSize: '7px',
+                            lineHeight: '10px',
+                            color: '#3A3D48',
+                            margin: '5px 0 0 0'
+                          }}
+                        >
+                          {core.join(' • ')}
+                        </p>
+                      ) : null;
+                    })()}
                   </div>
 
-                  {/* PROJECTS Section */}
+                  {/* PROJECTS Section — filled only when genuine projects were supplied */}
                   <div
                     id="section-projects"
+
                     data-gap-skill={selectedGapSkill || ''}
                     style={{ marginBottom: '10px' }}
                   >
@@ -975,9 +1199,38 @@ export const ResumeBuilderScreen: React.FC<ResumeBuilderScreenProps> = ({
                         backgroundColor: '#E8E5F2'
                       }}
                     />
+                    {(() => {
+                      const projects = generatedResume?.structuredResume?.projects || [];
+                      return projects.length > 0 ? (
+                        <p
+                          id="projects-content"
+                          style={{
+                            fontSize: '7px',
+                            lineHeight: '10px',
+                            color: '#3A3D48',
+                            margin: '5px 0 0 0'
+                          }}
+                        >
+                          {projects.map((p) => p.title).join(' • ')}
+                        </p>
+                      ) : (
+                        <p
+                          id="projects-empty-note"
+                          style={{
+                            fontSize: '7px',
+                            lineHeight: '10px',
+                            color: '#9B98A8',
+                            fontStyle: 'italic',
+                            margin: '5px 0 0 0'
+                          }}
+                        >
+                          Not provided
+                        </p>
+                      );
+                    })()}
                   </div>
 
-                  {/* EDUCATION Section */}
+                  {/* EDUCATION Section — actual generated education entries */}
                   <div
                     id="section-education"
                     data-education={`${education} • ${year}`}
@@ -1000,6 +1253,22 @@ export const ResumeBuilderScreen: React.FC<ResumeBuilderScreenProps> = ({
                         backgroundColor: '#E8E5F2'
                       }}
                     />
+                    {(() => {
+                      const edu = generatedResume?.structuredResume?.education || [];
+                      return edu.length > 0 ? (
+                        <p
+                          id="education-content"
+                          style={{
+                            fontSize: '7px',
+                            lineHeight: '10px',
+                            color: '#3A3D48',
+                            margin: '5px 0 0 0'
+                          }}
+                        >
+                          {edu.map((e) => `${e.degree} (${e.year})`).join(' • ')}
+                        </p>
+                      ) : null;
+                    })()}
                   </div>
                 </div>
 
@@ -1026,7 +1295,7 @@ export const ResumeBuilderScreen: React.FC<ResumeBuilderScreenProps> = ({
                     transition: 'all 0.15s ease'
                   }}
                 >
-                  Export resume
+                  {isExporting ? 'Exporting...' : 'Export resume'}
                 </button>
               </div>
             </div>

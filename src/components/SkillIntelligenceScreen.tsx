@@ -213,6 +213,7 @@ export const SkillIntelligenceScreen: React.FC<SkillIntelligenceScreenProps> = (
 
       {/* Top Navigation Bar (Figma node 44:303) */}
       <header
+        className="screen-header-bar"
         style={{
           width: '100%',
           maxWidth: '1376px',
@@ -310,6 +311,7 @@ export const SkillIntelligenceScreen: React.FC<SkillIntelligenceScreenProps> = (
 
       {/* Main Content Area (988px width) */}
       <main
+        className="screen-main-card-box"
         style={{
           width: '100%',
           maxWidth: '988px',
@@ -341,6 +343,7 @@ export const SkillIntelligenceScreen: React.FC<SkillIntelligenceScreenProps> = (
 
         {/* Header Title (Figma node 44:310) */}
         <h1
+          className="responsive-screen-title"
           style={{
             fontSize: '38px',
             fontWeight: 700,
@@ -371,6 +374,7 @@ export const SkillIntelligenceScreen: React.FC<SkillIntelligenceScreenProps> = (
         {/* Filters / Context Panel (Figma node 44:312) */}
         <div
           id="filters-panel"
+          className="skill-intel-filter-bar"
           style={{
             width: '100%',
             height: '72px',
@@ -504,6 +508,7 @@ export const SkillIntelligenceScreen: React.FC<SkillIntelligenceScreenProps> = (
 
         {/* Row 2: Demand Chart (650px) + Why This Matters (312px) */}
         <div
+          className="skill-intel-main-grid"
           style={{
             display: 'grid',
             gridTemplateColumns: '650px 312px',
@@ -515,6 +520,7 @@ export const SkillIntelligenceScreen: React.FC<SkillIntelligenceScreenProps> = (
           {/* Demand Chart Panel (Figma node 44:321) */}
           <div
             id="demand-chart-panel"
+            className="skill-intel-panel-card"
             style={{
               height: '420px',
               borderRadius: '22px',
@@ -611,6 +617,7 @@ export const SkillIntelligenceScreen: React.FC<SkillIntelligenceScreenProps> = (
           {/* Why This Matters Panel (Figma node 44:347) */}
           <div
             id="why-this-matters-panel"
+            className="skill-intel-panel-card"
             style={{
               height: '420px',
               borderRadius: '22px',

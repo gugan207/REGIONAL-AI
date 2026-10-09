@@ -163,6 +163,7 @@ export const RegionalSignalScreen: React.FC<RegionalSignalScreenProps> = ({
 
       {/* Top Navigation Bar (Figma node 44:220) */}
       <header
+        className="screen-header-bar"
         style={{
           width: '100%',
           maxWidth: '1376px',
@@ -260,6 +261,7 @@ export const RegionalSignalScreen: React.FC<RegionalSignalScreenProps> = ({
 
       {/* Main Container (Aligned to Figma 1440 layout: 988px width) */}
       <main
+        className="screen-main-card-box"
         style={{
           width: '100%',
           maxWidth: '988px',
@@ -291,6 +293,7 @@ export const RegionalSignalScreen: React.FC<RegionalSignalScreenProps> = ({
 
         {/* Main Title (Figma node 44:227) */}
         <h1
+          className="responsive-screen-title"
           style={{
             fontSize: '44px',
             fontWeight: 700,
@@ -320,6 +323,7 @@ export const RegionalSignalScreen: React.FC<RegionalSignalScreenProps> = ({
 
         {/* Two-Card Grid Row: Readiness Card (350px) + Top Gap Card (610px) */}
         <div
+          className="regional-signal-main-grid"
           style={{
             display: 'grid',
             gridTemplateColumns: '350px 1fr',

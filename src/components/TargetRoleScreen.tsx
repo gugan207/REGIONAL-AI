@@ -161,6 +161,7 @@ export const TargetRoleScreen: React.FC<TargetRoleScreenProps> = ({
 
       {/* Top Navigation (Figma node 44:125) */}
       <header
+        className="screen-header-bar"
         style={{
           width: '100%',
           maxWidth: '1376px',
@@ -250,6 +251,7 @@ export const TargetRoleScreen: React.FC<TargetRoleScreenProps> = ({
 
       {/* Main Target Role Card (Figma node 44:131) */}
       <main
+        className="screen-main-card-box"
         style={{
           width: '100%',
           maxWidth: '920px',
@@ -279,6 +281,7 @@ export const TargetRoleScreen: React.FC<TargetRoleScreenProps> = ({
 
         {/* Title (Figma node 44:133) */}
         <h1
+          className="responsive-screen-title"
           style={{
             fontSize: '36px',
             fontWeight: 700,

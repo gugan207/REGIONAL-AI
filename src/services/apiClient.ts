@@ -4,8 +4,12 @@
  * with robust Fallback-First resilience when APIs are offline or rate-limited.
  */
 
+/**
+ * Standardized server envelope: { ok, data, meta, error? }.
+ * Mirrors server/src/types/api.ts ApiResponse — never rely on a `success` field.
+ */
 export interface ApiResponse<T> {
-  success: boolean;
+  ok: boolean;
   data: T;
   meta: {
     source: string;
@@ -15,6 +19,32 @@ export interface ApiResponse<T> {
     quotaUnitsUsed?: number;
   };
   error?: string;
+}
+
+/** A YouTube video ID is exactly 11 chars of [A-Za-z0-9_-]. */
+const YOUTUBE_VIDEO_ID_RE = /^[A-Za-z0-9_-]{11}$/;
+
+export function isEmbeddableYouTubeId(id: string | null | undefined): boolean {
+  return typeof id === 'string' && YOUTUBE_VIDEO_ID_RE.test(id);
+}
+
+/**
+ * Builds a safe, genuine youtube.com URL for a video.
+ * Never constructs embeds from arbitrary untrusted input.
+ */
+export function safeYouTubeWatchUrl(videoId: string | null | undefined, videoUrl: string | null | undefined): string {
+  if (isEmbeddableYouTubeId(videoId)) {
+    return `https://www.youtube.com/watch?v=${videoId}`;
+  }
+  if (
+    videoUrl &&
+    videoUrl.length <= 300 &&
+    /^https:\/\/(www\.)?youtube\.com\/(watch|results)\//.test(videoUrl) &&
+    videoUrl.startsWith('https://')
+  ) {
+    return videoUrl;
+  }
+  return 'https://www.youtube.com/results?search_query=tutorial';
 }
 
 export interface BackendHealth {
@@ -30,6 +60,8 @@ export interface BackendHealth {
 
 export interface LiveYouTubeVideo {
   id: string;
+  /** 11-char YouTube video id when a real video is known; never fabricated. */
+  videoId: string;
   title: string;
   channelTitle: string;
   publishedAt: string;
@@ -37,6 +69,20 @@ export interface LiveYouTubeVideo {
   duration?: string;
   url: string;
   level: string;
+}
+
+/** Returns the thumbnail URL only when it is a genuine i.ytimg.com image for the same video ID. */
+function safeYouTubeThumbnailUrl(videoId: string | null | undefined, raw: string | null | undefined): string {
+  if (isEmbeddableYouTubeId(videoId)) {
+    return `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
+  }
+  if (
+    raw &&
+    /^https:\/\/i\.ytimg\.com\/vi\/[A-Za-z0-9_-]{11}\//.test(raw)
+  ) {
+    return raw;
+  }
+  return '';
 }
 
 export interface YouTubeSearchResult {
@@ -68,33 +114,37 @@ export interface GeneratedRoadmap {
   stages: RoadmapMilestoneStage[];
 }
 
+/** Mirrors server/src/types/api.ts ResumeGenerationResponse.structuredResume exactly. */
 export interface StructuredResume {
-  contactInfo: {
-    name: string;
-    title: string;
-    location: string;
-    contactNote: string;
+  contact: {
+    fullName: string;
+    email: string;
+    phone?: string;
+    cityState: string;
+    githubUrl?: string;
+    linkedinUrl?: string;
   };
-  skillsSummary: {
-    verifiedSkills: string[];
-    gapSkillsInProgress: string[];
-  };
+  professionalSummary: string;
+  technicalSkills: Record<string, string[]>;
   experience: Array<{
-    role: string;
-    companyOrContext: string;
-    period: string;
-    highlights: string[];
+    roleTitle: string;
+    organization: string;
+    periodFormatted?: string;
+    bulletPoints: string[];
+    verifiedFactsOnly: boolean;
   }>;
   projects: Array<{
     title: string;
     technologies: string[];
-    description: string;
-    outcomeEvidence: string;
+    bulletPoints: string[];
+    githubOrLiveUrl?: string;
   }>;
-  education: {
+  education: Array<{
+    institution: string;
     degree: string;
-    status: string;
-  };
+    year: number;
+    gpaOrGrade?: string;
+  }>;
 }
 
 export interface GeneratedResumeResponse {
@@ -104,6 +154,11 @@ export interface GeneratedResumeResponse {
     zeroHallucinationGuaranteed: boolean;
     unverifiedFactsFilteredCount: number;
     skillsStrictlyMatched: boolean;
+  };
+  meta?: {
+    model?: string;
+    generatedAt?: string;
+    isFallback?: boolean;
   };
 }
 
@@ -121,11 +176,12 @@ export interface SkillGapExplanation {
   };
 }
 
-// Fallback helpers
+// Fallback helpers — every entry is a real, publicly known YouTube video.
 export const FALLBACK_YOUTUBE_VIDEOS: Record<string, LiveYouTubeVideo[]> = {
   docker: [
     {
       id: 'pTFZFxd4hOI',
+      videoId: 'pTFZFxd4hOI',
       title: 'Docker Tutorial for Beginners',
       channelTitle: 'Programming with Mosh',
       publishedAt: '2024-01-01T00:00:00Z',
@@ -136,6 +192,7 @@ export const FALLBACK_YOUTUBE_VIDEOS: Record<string, LiveYouTubeVideo[]> = {
     },
     {
       id: '3c-iBn73dDE',
+      videoId: '3c-iBn73dDE',
       title: 'Docker Tutorial for Beginners [FULL COURSE in 3 Hours]',
       channelTitle: 'TechWorld with Nana',
       publishedAt: '2024-01-01T00:00:00Z',
@@ -147,29 +204,32 @@ export const FALLBACK_YOUTUBE_VIDEOS: Record<string, LiveYouTubeVideo[]> = {
   ],
   aws: [
     {
-      id: 'aws-1',
+      id: 'ulprqHHWlng',
+      videoId: 'ulprqHHWlng',
       title: 'AWS cloud practitioner fundamentals',
       channelTitle: 'FreeCodeCamp',
       publishedAt: '2024-01-01T00:00:00Z',
-      thumbnailUrl: 'https://i.ytimg.com/vi/k1RI5locZE4/hqdefault.jpg',
+      thumbnailUrl: 'https://i.ytimg.com/vi/ulprqHHWlng/hqdefault.jpg',
       duration: '48 min',
-      url: 'https://www.youtube.com/watch?v=k1RI5locZE4',
+      url: 'https://www.youtube.com/watch?v=ulprqHHWlng',
       level: 'Beginner • Demo result'
     },
     {
-      id: 'aws-2',
+      id: 'k1RI5locZE4',
+      videoId: 'k1RI5locZE4',
       title: 'AWS backend deployment guide',
       channelTitle: 'TechWorld with Nana',
       publishedAt: '2024-01-01T00:00:00Z',
-      thumbnailUrl: 'https://i.ytimg.com/vi/ulprqHHWlng/hqdefault.jpg',
+      thumbnailUrl: 'https://i.ytimg.com/vi/k1RI5locZE4/hqdefault.jpg',
       duration: '35 min',
-      url: 'https://www.youtube.com/watch?v=ulprqHHWlng',
+      url: 'https://www.youtube.com/watch?v=k1RI5locZE4',
       level: 'Intermediate • Demo result'
     }
   ],
   'rest apis': [
     {
-      id: 'rest-1',
+      id: '-MTSQjw5DrM',
+      videoId: '-MTSQjw5DrM',
       title: 'RESTful API architecture & design',
       channelTitle: 'Amigoscode',
       publishedAt: '2024-01-01T00:00:00Z',
@@ -179,7 +239,8 @@ export const FALLBACK_YOUTUBE_VIDEOS: Record<string, LiveYouTubeVideo[]> = {
       level: 'Beginner • Demo result'
     },
     {
-      id: 'rest-2',
+      id: '7Q17ubqLfaM',
+      videoId: '7Q17ubqLfaM',
       title: 'API authentication with JWT & OAuth',
       channelTitle: 'Hussein Nasser',
       publishedAt: '2024-01-01T00:00:00Z',
@@ -236,18 +297,34 @@ class ApiClient {
         const json = await res.json();
         const rawList = json.data?.resources || json.data?.videos || json.resources || [];
         if (Array.isArray(rawList) && rawList.length > 0) {
-          const videos: LiveYouTubeVideo[] = rawList.map((r: any) => ({
-            id: r.videoId || r.id,
-            title: r.title,
-            channelTitle: r.channelTitle,
-            publishedAt: r.publishedAt || '',
-            thumbnailUrl: r.thumbnailUrl || '',
-            duration: r.durationFormatted || r.duration || '35 min',
-            url: r.videoUrl || r.url || `https://www.youtube.com/watch?v=${r.videoId || r.id}`,
-            level: r.level || 'Beginner • Live result'
-          }));
+          const videos: LiveYouTubeVideo[] = rawList
+            .filter((r: any) => r && (r.videoId || r.id))
+            .map((r: any) => {
+              const rawId: string = r.videoId || r.id;
+              // For curated fallback ids like "cur_gen_xxx_01" the URL may be a search URL;
+              // derive the real 11-char video id from a watch link when present.
+              const watchMatch = typeof r.videoUrl === 'string'
+                ? r.videoUrl.match(/[?&]v=([A-Za-z0-9_-]{11})/)
+                : null;
+              const videoId: string = isEmbeddableYouTubeId(rawId)
+                ? rawId
+                : watchMatch
+                ? watchMatch[1]
+                : rawId;
+              return {
+                id: rawId,
+                videoId,
+                title: r.title,
+                channelTitle: r.channelTitle,
+                publishedAt: r.publishedAt || '',
+                thumbnailUrl: safeYouTubeThumbnailUrl(videoId, r.thumbnailUrl),
+                duration: r.durationFormatted || r.duration || '35 min',
+                url: safeYouTubeWatchUrl(videoId, r.videoUrl || r.url),
+                level: r.level || 'Beginner • Live result'
+              };
+            });
           return {
-            success: true,
+            ok: true,
             data: {
               query: json.data?.query || json.query || `${skill} tutorial`,
               targetRole,
@@ -262,37 +339,42 @@ class ApiClient {
             }
           };
         }
+      } else {
+        console.warn('[apiClient] YouTube search HTTP error:', res.status);
       }
-    } catch {
-      // Graceful fallback on network/server errors
+    } catch (e) {
+      console.warn('[apiClient] YouTube search request failed:', e instanceof Error ? e.message : e);
     }
 
     // Deterministic fallback
-    const fallbackList = FALLBACK_YOUTUBE_VIDEOS[normSkill] || [
+    const genericFallback: LiveYouTubeVideo[] = [
       {
-        id: `${normSkill}-1`,
-        title: `${skill} essentials for ${targetRole}`,
-        channelTitle: 'Tech Learning Hub',
-        publishedAt: new Date().toISOString(),
-        thumbnailUrl: 'https://via.placeholder.com/320x180/5B50E8/FFFFFF?text=' + encodeURIComponent(skill),
-        duration: '45 min',
-        url: 'https://www.youtube.com',
+        id: 'search',
+        videoId: '',
+        title: `${skill} tutorial for ${targetRole}`,
+        channelTitle: 'YouTube Search',
+        publishedAt: '',
+        thumbnailUrl: '',
+        duration: '',
+        url: `https://www.youtube.com/results?search_query=${encodeURIComponent(`${skill} tutorial ${targetRole}`)}`,
         level: 'Beginner • Demo result'
       },
       {
-        id: `${normSkill}-2`,
+        id: 'search-intermediate',
+        videoId: '',
         title: `Production ${skill} deployment tutorial`,
-        channelTitle: 'Engineering Pro',
-        publishedAt: new Date().toISOString(),
-        thumbnailUrl: 'https://via.placeholder.com/320x180/8B7CF6/FFFFFF?text=' + encodeURIComponent(skill),
-        duration: '38 min',
-        url: 'https://www.youtube.com',
+        channelTitle: 'YouTube Search',
+        publishedAt: '',
+        thumbnailUrl: '',
+        duration: '',
+        url: `https://www.youtube.com/results?search_query=${encodeURIComponent(`production ${skill} deployment tutorial`)}`,
         level: 'Intermediate • Demo result'
       }
     ];
+    const fallbackList = FALLBACK_YOUTUBE_VIDEOS[normSkill] || genericFallback;
 
     return {
-      success: true,
+      ok: true,
       data: {
         query: `${skill} tutorial for ${targetRole}`,
         targetRole,
@@ -327,16 +409,17 @@ class ApiClient {
       });
       if (res.ok) {
         const data = await res.json();
-        if (data.success && data.data) {
+        if (data.ok && data.data) {
           return data;
         }
+        console.warn('[apiClient] Roadmap request rejected:', data.error || 'unknown error');
       }
     } catch (e) {
-      // Fallback
+      console.warn('[apiClient] Roadmap request failed:', e instanceof Error ? e.message : e);
     }
 
     return {
-      success: true,
+      ok: true,
       data: {
         roadmapId: `rdmp_fb_${Date.now()}`,
         targetRole: payload.targetRole,
@@ -386,17 +469,36 @@ class ApiClient {
   /**
    * Google Gemini Resume Generation (Zero-Hallucination)
    */
+  /**
+   * Google Gemini Resume Generation (Zero-Hallucination)
+   * Sends the exact backend contract from server/src/types/api.ts:
+   * contact + targetRole + education[] + verifiedSkills + unstructuredExperience[] + unstructuredProjects[].
+   * If the live request fails, NO fallback resume is fabricated client-side — the caller
+   * decides how to present the error so no false success is ever shown.
+   */
   async generateResume(payload: {
-    candidateProfile: {
+    contact: {
       fullName: string;
-      region: string;
-      targetRole: string;
-      education: string;
-      year: string;
+      email: string;
+      phone?: string;
+      cityState: string;
+      githubUrl?: string;
+      linkedinUrl?: string;
     };
+    targetRole: string;
+    education: Array<{ institution: string; degree: string; year: number; gpaOrGrade?: string }>;
     verifiedSkills: string[];
-    selectedGapSkill?: string;
-    userExperienceNotes?: string;
+    unstructuredExperience: Array<{
+      rawJobOrRoleTitle: string;
+      organization: string;
+      datesOrPeriod?: string;
+      rawAccomplishmentsNotes: string;
+    }>;
+    unstructuredProjects: Array<{
+      projectName: string;
+      toolsUsedRaw?: string[];
+      rawNotes: string;
+    }>;
   }): Promise<ApiResponse<GeneratedResumeResponse>> {
     try {
       const res = await fetch(`${this.baseUrl}/ai/resume`, {
@@ -404,66 +506,26 @@ class ApiClient {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.success && data.data) {
-          return data;
-        }
+      const data = await res.json().catch(() => null);
+      if (res.ok && data && data.ok && data.data && data.data.structuredResume) {
+        return data as ApiResponse<GeneratedResumeResponse>;
       }
+      console.warn('[apiClient] Resume request rejected:', (data && data.error) || `HTTP ${res.status}`);
+      return {
+        ok: false,
+        data: null as unknown as GeneratedResumeResponse,
+        error: (data && data.error) || `Resume generation failed (HTTP ${res.status})`,
+        meta: { source: 'error', isFallback: false }
+      };
     } catch (e) {
-      // Fallback
+      console.warn('[apiClient] Resume request failed:', e instanceof Error ? e.message : e);
+      return {
+        ok: false,
+        data: null as unknown as GeneratedResumeResponse,
+        error: e instanceof Error ? e.message : 'Resume generation failed: backend unreachable',
+        meta: { source: 'error', isFallback: false }
+      };
     }
-
-    return {
-      success: true,
-      data: {
-        resumeId: `res_fb_${Date.now()}`,
-        structuredResume: {
-          contactInfo: {
-            name: payload.candidateProfile.fullName || 'Candidate',
-            title: `${payload.candidateProfile.targetRole} Candidate`,
-            location: `${payload.candidateProfile.region}, India`,
-            contactNote: 'Contact details provided by candidate'
-          },
-          skillsSummary: {
-            verifiedSkills: payload.verifiedSkills,
-            gapSkillsInProgress: payload.selectedGapSkill ? [payload.selectedGapSkill] : ['Docker']
-          },
-          experience: [
-            {
-              role: 'Backend Engineering Project',
-              companyOrContext: 'Academic & Personal Portfolio',
-              period: `${payload.candidateProfile.year} (${payload.candidateProfile.education})`,
-              highlights: [
-                'Engineered backend endpoints utilizing ' + payload.verifiedSkills.join(', '),
-                'Adheres strictly to verified candidate achievements with zero unsupported claims.'
-              ]
-            }
-          ],
-          projects: [
-            {
-              title: 'Containerized Regional Backend Service',
-              technologies: [...payload.verifiedSkills, payload.selectedGapSkill || 'Docker'],
-              description: 'Production-ready REST API formatted for regional employer evaluation.',
-              outcomeEvidence: 'Documented codebase, README setup, and proof repository.'
-            }
-          ],
-          education: {
-            degree: payload.candidateProfile.education,
-            status: payload.candidateProfile.year
-          }
-        },
-        auditRecord: {
-          zeroHallucinationGuaranteed: true,
-          unverifiedFactsFilteredCount: 0,
-          skillsStrictlyMatched: true
-        }
-      },
-      meta: {
-        source: 'curated_fallback',
-        isFallback: true
-      }
-    };
   }
 
   /**
@@ -483,16 +545,17 @@ class ApiClient {
       });
       if (res.ok) {
         const data = await res.json();
-        if (data.success && data.data) {
+        if (data.ok && data.data) {
           return data;
         }
+        console.warn('[apiClient] Skill-gap request rejected:', data.error || 'unknown error');
       }
     } catch (e) {
-      // Fallback
+      console.warn('[apiClient] Skill-gap request failed:', e instanceof Error ? e.message : e);
     }
 
     return {
-      success: true,
+      ok: true,
       data: {
         skill: payload.identifiedGapSkill,
         targetRole: payload.targetRole,

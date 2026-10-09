@@ -75,7 +75,8 @@ const expectedFigmaTokens = [
   'Docker for backend developers',
   'Intermediate • Demo result',
   '31 min',
-  'Demo resources shown here. Live YouTube search will populate these cards during implementation.'
+  'Click a card to play its tutorial. Live YouTube results appear when the API is available.',
+  'Play video Docker fundamentals by Programming with Mosh'
 ];
 
 expectedFigmaTokens.forEach(token => {

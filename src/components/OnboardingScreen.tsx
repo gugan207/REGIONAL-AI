@@ -132,6 +132,7 @@ export const OnboardingScreen: React.FC<OnboardingScreenProps> = ({
 
       {/* Top Navigation / Onboarding (Figma node 42:7) */}
       <header
+        className="screen-header-bar"
         style={{
           width: '100%',
           maxWidth: '1376px',
@@ -207,6 +208,7 @@ export const OnboardingScreen: React.FC<OnboardingScreenProps> = ({
 
       {/* Main Onboarding Card (Figma node 42:13) */}
       <main
+        className="screen-main-card-box"
         style={{
           width: '100%',
           maxWidth: '880px',
@@ -237,6 +239,7 @@ export const OnboardingScreen: React.FC<OnboardingScreenProps> = ({
 
         {/* Title (Figma node 42:15) */}
         <h1
+          className="responsive-screen-title"
           style={{
             fontSize: '36px',
             fontWeight: 700,
@@ -349,6 +352,7 @@ export const OnboardingScreen: React.FC<OnboardingScreenProps> = ({
 
             {/* Education Options Cards (Figma nodes 42:21, 42:25, 42:29) */}
             <div
+              className="onboarding-options-grid"
               style={{
                 display: 'grid',
                 gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))',
@@ -437,6 +441,7 @@ export const OnboardingScreen: React.FC<OnboardingScreenProps> = ({
 
           {/* Form Fields: Year and Preferred Region (Figma nodes 42:33, 42:34) */}
           <div
+            className="onboarding-fields-grid"
             style={{
               display: 'grid',
               gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',

@@ -15,6 +15,7 @@ import { ResumeBuilderScreen } from './components/ResumeBuilderScreen';
 import { SkillProofScreen } from './components/SkillProofScreen';
 import { SystemQAScreen } from './components/SystemQAScreen';
 
+
 type Screen =
   | 'login'
   | 'onboarding'
@@ -40,6 +41,7 @@ interface UserProfileState {
   signalData: RegionalSignalData | null;
   selectedGapSkill: string | null;
 }
+
 
 export const App: React.FC = () => {
   const [currentScreen, setCurrentScreen] = useState<Screen>('login');
@@ -788,6 +790,7 @@ export const App: React.FC = () => {
 
       {/* Main Content Area (1440 layout canvas) */}
       <main
+        className="app-main-layout"
         style={{
           width: '100%',
           maxWidth: '1344px',
@@ -804,10 +807,13 @@ export const App: React.FC = () => {
         }}
       >
         {/* Left Hero Column */}
-        <HeroSection />
+        <div className="hero-section-col">
+          <HeroSection />
+        </div>
 
         {/* Right Auth Column */}
         <div
+          className="auth-card-col"
           style={{
             flex: '1 1 480px',
             maxWidth: '584px',

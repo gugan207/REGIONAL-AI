@@ -152,6 +152,7 @@ export const SkillGapScreen: React.FC<SkillGapScreenProps> = ({
 
       {/* Top Navigation Bar (Figma Node 44:359) */}
       <header
+        className="screen-header-bar"
         style={{
           position: 'relative',
           zIndex: 1,
@@ -251,6 +252,7 @@ export const SkillGapScreen: React.FC<SkillGapScreenProps> = ({
 
       {/* Main Content Container (988px width matching Figma layout) */}
       <main
+        className="screen-main-card-box"
         style={{
           position: 'relative',
           zIndex: 1,
@@ -278,6 +280,7 @@ export const SkillGapScreen: React.FC<SkillGapScreenProps> = ({
           </div>
           <h1
             id="page-title"
+            className="responsive-screen-title"
             style={{
               fontSize: '38px',
               fontWeight: 700,
@@ -306,6 +309,7 @@ export const SkillGapScreen: React.FC<SkillGapScreenProps> = ({
         {/* Gap Summary Panel (Figma Node 44:368 - 988 x 116px, r=22px) */}
         <section
           id="gap-summary-panel"
+          className="skill-gap-summary-panel"
           style={{
             width: '100%',
             height: '116px',
@@ -377,6 +381,7 @@ export const SkillGapScreen: React.FC<SkillGapScreenProps> = ({
         {/* Three Skill Gap Cards Row (Figma 44:372, 44:381, 44:389) */}
         <div
           id="skill-gap-cards-grid"
+          className="skill-gap-cards-container"
           style={{
             width: '100%',
             display: 'grid',
@@ -393,6 +398,7 @@ export const SkillGapScreen: React.FC<SkillGapScreenProps> = ({
               <div
                 key={gap.id}
                 id={`gap-card-${gap.id}`}
+                className="skill-gap-card-item"
                 onMouseEnter={() => setHoveredCard(gap.id)}
                 onMouseLeave={() => setHoveredCard(null)}
                 style={{

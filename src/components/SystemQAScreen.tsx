@@ -158,6 +158,7 @@ export const SystemQAScreen: React.FC<SystemQAScreenProps> = ({
       {/* Top Navigation Bar (Design System: 1376 x 68px, r=34px) */}
       <header
         id="top-nav"
+        className="screen-header-bar"
         style={{
           position: 'relative',
           zIndex: 2,
@@ -376,6 +377,7 @@ export const SystemQAScreen: React.FC<SystemQAScreenProps> = ({
 
       {/* Main Content Area (Matching Figma 1440 layout with 72px left coordinate) */}
       <main
+        className="screen-main-card-box"
         style={{
           position: 'relative',
           zIndex: 1,
@@ -405,6 +407,7 @@ export const SystemQAScreen: React.FC<SystemQAScreenProps> = ({
         {/* Figma Node 44:590: Title */}
         <h1
           id="title"
+          className="responsive-screen-title"
           style={{
             margin: 0,
             fontFamily: "'Inter', sans-serif",
@@ -440,6 +443,7 @@ export const SystemQAScreen: React.FC<SystemQAScreenProps> = ({
         {/* Figma Node 44:592: Prototype Flow (w: 988, h: 122, r: 22, bg: #FFFFFF, border: 1px solid #E0DEEB) */}
         <section
           id="prototype-flow"
+          className="qa-prototype-flow-box"
           aria-label="Prototype Flow"
           style={{
             width: '988px',
@@ -550,6 +554,7 @@ export const SystemQAScreen: React.FC<SystemQAScreenProps> = ({
 
         {/* Bottom Section: Design Audit & Implementation Notes side-by-side */}
         <div
+          className="qa-bottom-flex-box"
           style={{
             display: 'flex',
             alignItems: 'flex-start',
@@ -562,6 +567,7 @@ export const SystemQAScreen: React.FC<SystemQAScreenProps> = ({
           {/* Figma Node 44:613: Design Audit Card (470 x 350, r: 22, #FFFFFF, shadow: 0 12px 28px rgba(20, 13, 46, 0.12)) */}
           <section
             id="design-audit"
+            className="qa-audit-card-box"
             aria-label="Verification checklist"
             style={{
               width: '470px',
@@ -659,6 +665,7 @@ export const SystemQAScreen: React.FC<SystemQAScreenProps> = ({
           {/* Figma Node 44:629: Implementation Notes Card (492 x 350, r: 22, #5B50E8, shadow: 0 12px 28px rgba(20, 13, 46, 0.12)) */}
           <section
             id="implementation-notes"
+            className="qa-notes-card-box"
             aria-label="Before frontend build"
             style={{
               width: '492px',

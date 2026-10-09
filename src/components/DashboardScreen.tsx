@@ -147,6 +147,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
 
       {/* Top Navigation Bar (Figma node 44:254) */}
       <header
+        className="screen-header-bar"
         style={{
           width: '100%',
           maxWidth: '1376px',
@@ -244,6 +245,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
 
       {/* Main Content (Figma layout: 988px width) */}
       <main
+        className="screen-main-card-box"
         style={{
           width: '100%',
           maxWidth: '988px',
@@ -275,6 +277,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
 
         {/* Main Title (Figma node 44:261) */}
         <h1
+          className="responsive-screen-title"
           style={{
             fontSize: '38px',
             fontWeight: 700,
@@ -304,6 +307,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
 
         {/* Three Metric Cards Row (Figma nodes 44:263, 44:269, 44:273) */}
         <div
+          className="dashboard-top-grid"
           style={{
             display: 'grid',
             gridTemplateColumns: 'repeat(3, 1fr)',
@@ -513,6 +517,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
 
         {/* Row 2: Skill Gaps Panel (610px) + Next Action Panel (348px) */}
         <div
+          className="dashboard-bottom-grid"
           style={{
             display: 'grid',
             gridTemplateColumns: '610px 1fr',
@@ -524,6 +529,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
           {/* Skill Gaps Panel (Figma node 44:277) */}
           <div
             id="skill-gaps-panel"
+            className="dashboard-panel-card"
             style={{
               height: '300px',
               borderRadius: '22px',
@@ -604,6 +610,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
 
                   {/* Progress Track & Fill (280px total track) */}
                   <div
+                    className="dashboard-gap-track"
                     style={{
                       width: '280px',
                       height: '8px',
@@ -631,6 +638,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
           {/* Next Action Panel (Figma node 44:293) */}
           <div
             id="next-action-panel"
+            className="dashboard-panel-card"
             style={{
               height: '300px',
               borderRadius: '22px',

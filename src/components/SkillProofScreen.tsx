@@ -229,6 +229,7 @@ export const SkillProofScreen: React.FC<SkillProofScreenProps> = ({
       {/* Top Navigation Bar (Figma Node 44:542 - 1376 x 68px, r=34px) */}
       <header
         id="top-nav"
+        className="screen-header-bar"
         style={{
           position: 'relative',
           zIndex: 1,
@@ -328,6 +329,7 @@ export const SkillProofScreen: React.FC<SkillProofScreenProps> = ({
 
       {/* Main Content Container (matching Figma 988px 2-card layout) */}
       <main
+        className="screen-main-card-box"
         style={{
           position: 'relative',
           zIndex: 1,
@@ -355,6 +357,7 @@ export const SkillProofScreen: React.FC<SkillProofScreenProps> = ({
           </div>
           <h1
             id="page-title"
+            className="responsive-screen-title"
             style={{
               fontSize: '38px',
               fontWeight: 700,
@@ -382,6 +385,7 @@ export const SkillProofScreen: React.FC<SkillProofScreenProps> = ({
 
         {/* Two Main Cards Grid: Project Card (610px) + Proof Checklist (346px), gap 32px */}
         <div
+          className="skill-proof-main-grid"
           style={{
             width: '100%',
             display: 'grid',
@@ -393,6 +397,7 @@ export const SkillProofScreen: React.FC<SkillProofScreenProps> = ({
           {/* Card 1: Project Card (Figma Node 44:551 - 610 x 470px, r=24px) */}
           <section
             id="project-card"
+            className="skill-proof-card-item"
             style={{
               width: '610px',
               height: '470px',
@@ -477,6 +482,7 @@ export const SkillProofScreen: React.FC<SkillProofScreenProps> = ({
               {/* 6 Requirements List (Figma Nodes 44:557 - 44:568) */}
               <div
                 id="requirements-list"
+                className="skill-proof-req-list"
                 style={{
                   display: 'grid',
                   gridTemplateColumns: 'repeat(2, 1fr)',
@@ -549,6 +555,7 @@ export const SkillProofScreen: React.FC<SkillProofScreenProps> = ({
           {/* Card 2: Proof Checklist (Figma Node 44:571 - 346 x 470px, r=24px) */}
           <section
             id="proof-checklist-card"
+            className="skill-proof-card-item"
             style={{
               width: '346px',
               height: '470px',

@@ -44,7 +44,7 @@ export const ProductPreviewCard: React.FC = () => {
                 lineHeight: '20px'
               }}
             >
-              Chennai &nbsp;•&nbsp; Backend Developer
+              {'Chennai  •  Backend Developer'}
             </p>
           </div>
           <div

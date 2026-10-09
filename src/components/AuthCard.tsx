@@ -2,9 +2,10 @@ import React, { useState } from 'react';
 
 interface AuthCardProps {
   onSuccess?: (email: string) => void;
+  onSignIn?: (email: string, password: string) => void;
 }
 
-export const AuthCard: React.FC<AuthCardProps> = ({ onSuccess }) => {
+export const AuthCard: React.FC<AuthCardProps> = ({ onSuccess, onSignIn }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -41,12 +42,20 @@ export const AuthCard: React.FC<AuthCardProps> = ({ onSuccess }) => {
     setIsLoading(true);
     setFeedbackMessage(null);
 
-    // Mock sign in simulation
-    setTimeout(() => {
-      setIsLoading(false);
-      setFeedbackMessage('Welcome back! Signed in successfully.');
-      if (onSuccess) onSuccess(email);
-    }, 700);
+    // Real or demo sign in: call onSignIn if provided, otherwise mock
+    if (onSignIn) {
+      setTimeout(() => {
+        onSignIn(email, password);
+        setIsLoading(false);
+      }, 700);
+    } else {
+      // Mock sign in simulation (backward compatibility)
+      setTimeout(() => {
+        setIsLoading(false);
+        setFeedbackMessage('Welcome back! Signed in successfully.');
+        if (onSuccess) onSuccess(email);
+      }, 700);
+    }
   };
 
   const handleForgotPassword = (e: React.MouseEvent) => {
@@ -70,6 +79,7 @@ export const AuthCard: React.FC<AuthCardProps> = ({ onSuccess }) => {
 
   return (
     <div
+      className="auth-card-box"
       style={{
         width: '100%',
         maxWidth: '584px',

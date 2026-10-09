@@ -182,6 +182,7 @@ export const SkillProfileScreen: React.FC<SkillProfileScreenProps> = ({
 
       {/* Top Navigation Bar (Figma node 44:166) */}
       <header
+        className="screen-header-bar"
         style={{
           width: '100%',
           maxWidth: '1376px',
@@ -279,6 +280,7 @@ export const SkillProfileScreen: React.FC<SkillProfileScreenProps> = ({
 
       {/* Main Content Area: Skill Profile Card (Figma node 44:172) */}
       <main
+        className="screen-main-card-box"
         style={{
           width: '100%',
           maxWidth: '1000px',
@@ -320,6 +322,7 @@ export const SkillProfileScreen: React.FC<SkillProfileScreenProps> = ({
 
           {/* Title (Figma node 44:174) */}
           <h1
+            className="responsive-screen-title"
             style={{
               fontSize: '36px',
               fontWeight: 700,
@@ -394,6 +397,7 @@ export const SkillProfileScreen: React.FC<SkillProfileScreenProps> = ({
           {/* Resume Upload Section (Figma node 44:176) */}
           <div
             id="resume-upload-box"
+            className="skill-profile-upload-box"
             style={{
               width: '100%',
               minHeight: '92px',
@@ -555,6 +559,7 @@ export const SkillProfileScreen: React.FC<SkillProfileScreenProps> = ({
 
           {/* Skills Grid: 5 columns x 2 rows (Figma nodes 44:183 to 44:212) */}
           <div
+            className="skill-profile-chips-box"
             style={{
               display: 'grid',
               gridTemplateColumns: 'repeat(5, 1fr)',

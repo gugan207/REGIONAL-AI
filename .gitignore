@@ -53,3 +53,5 @@ verify_figma_fidelity.js
 # Temporary & browser artifacts
 chrome_*.png
 temp_chrome_profile/
+.playwright-cli/
+supabase/

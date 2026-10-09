@@ -51,6 +51,7 @@ export const HeroSection: React.FC = () => {
 
       {/* Hero Title */}
       <h1
+        className="hero-title-text"
         style={{
           fontSize: '44px',
           fontWeight: 700,

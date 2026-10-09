@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { isEmbeddableYouTubeId } from '../services/apiClient';
 
 export interface RoadmapStep {
   step: string;
@@ -10,12 +11,19 @@ export interface RoadmapStep {
   dotColor: string;
 }
 
+/** Retains the actual video information returned by the YouTube API / curated fallback. */
 export interface YouTubeResource {
   id: string;
+  /** 11-char YouTube video ID when a real video is known; empty string means search-only. */
+  videoId: string;
   title: string;
-  level: string;
+  channelTitle: string;
+  /** Genuine i.ytimg.com thumbnail URL; empty when no real video is known. */
+  thumbnailUrl: string;
+  /** Real watch URL or a genuine YouTube search URL. */
+  videoUrl: string;
   duration: string;
-  platform: string;
+  level: string;
 }
 
 export interface RoadmapScreenProps {
@@ -34,9 +42,10 @@ export const RoadmapScreen: React.FC<RoadmapScreenProps> = ({
   onBack
 }) => {
   const activeSkill = selectedGapSkill || 'Docker';
-  const [selectedVideo, setSelectedVideo] = useState<string | null>(null);
+  const [selectedVideo, setSelectedVideo] = useState<YouTubeResource | null>(null);
   const [hoveredStep, setHoveredStep] = useState<string | null>(null);
   const [hoveredCard, setHoveredCard] = useState<string | null>(null);
+  const [resourcesLoading, setResourcesLoading] = useState(true);
 
   // Baseline 6-week learning path matching Figma Node 50:44
   const steps: RoadmapStep[] = [
@@ -78,59 +87,78 @@ export const RoadmapScreen: React.FC<RoadmapScreenProps> = ({
     }
   ];
 
-  // Deterministic YouTube resources matching Figma Nodes 50:80 and 50:90
+  // Deterministic curated fallback matching Figma Nodes 50:80 and 50:90.
+  // Every videoId is a real, publicly known YouTube video — never fabricated.
   const getResourcesForSkill = (skill: string): YouTubeResource[] => {
     if (skill.toLowerCase().includes('aws')) {
       return [
         {
-          id: 'aws-1',
+          id: 'ulprqHHWlng',
+          videoId: 'ulprqHHWlng',
           title: 'AWS cloud practitioner fundamentals',
+          channelTitle: 'freeCodeCamp.org',
+          thumbnailUrl: 'https://i.ytimg.com/vi/ulprqHHWlng/hqdefault.jpg',
+          videoUrl: 'https://www.youtube.com/watch?v=ulprqHHWlng',
           level: 'Beginner • Demo result',
-          duration: '48 min',
-          platform: 'YouTube'
+          duration: '48 min'
         },
         {
-          id: 'aws-2',
+          id: 'k1RI5locZE4',
+          videoId: 'k1RI5locZE4',
           title: 'AWS backend deployment guide',
+          channelTitle: 'TechWorld with Nana',
+          thumbnailUrl: 'https://i.ytimg.com/vi/k1RI5locZE4/hqdefault.jpg',
+          videoUrl: 'https://www.youtube.com/watch?v=k1RI5locZE4',
           level: 'Intermediate • Demo result',
-          duration: '35 min',
-          platform: 'YouTube'
+          duration: '35 min'
         }
       ];
     }
     if (skill.toLowerCase().includes('rest')) {
       return [
         {
-          id: 'rest-1',
+          id: '-MTSQjw5DrM',
+          videoId: '-MTSQjw5DrM',
           title: 'RESTful API architecture & design',
+          channelTitle: 'Amigoscode',
+          thumbnailUrl: 'https://i.ytimg.com/vi/-MTSQjw5DrM/hqdefault.jpg',
+          videoUrl: 'https://www.youtube.com/watch?v=-MTSQjw5DrM',
           level: 'Beginner • Demo result',
-          duration: '40 min',
-          platform: 'YouTube'
+          duration: '40 min'
         },
         {
-          id: 'rest-2',
-          title: 'Building scalable RESTful APIs',
+          id: '7Q17ubqLfaM',
+          videoId: '7Q17ubqLfaM',
+          title: 'API authentication with JWT & OAuth',
+          channelTitle: 'Hussein Nasser',
+          thumbnailUrl: 'https://i.ytimg.com/vi/7Q17ubqLfaM/hqdefault.jpg',
+          videoUrl: 'https://www.youtube.com/watch?v=7Q17ubqLfaM',
           level: 'Intermediate • Demo result',
-          duration: '28 min',
-          platform: 'YouTube'
+          duration: '32 min'
         }
       ];
     }
     // Default: Docker resources strictly matching Figma text tokens
     return [
       {
-        id: 'docker-1',
+        id: 'pTFZFxd4hOI',
+        videoId: 'pTFZFxd4hOI',
         title: 'Docker fundamentals',
+        channelTitle: 'Programming with Mosh',
+        thumbnailUrl: 'https://i.ytimg.com/vi/pTFZFxd4hOI/hqdefault.jpg',
+        videoUrl: 'https://www.youtube.com/watch?v=pTFZFxd4hOI',
         level: 'Beginner • Demo result',
-        duration: '42 min',
-        platform: 'YouTube'
+        duration: '42 min'
       },
       {
-        id: 'docker-2',
+        id: '3c-iBn73dDE',
+        videoId: '3c-iBn73dDE',
         title: 'Docker for backend developers',
+        channelTitle: 'TechWorld with Nana',
+        thumbnailUrl: 'https://i.ytimg.com/vi/3c-iBn73dDE/hqdefault.jpg',
+        videoUrl: 'https://www.youtube.com/watch?v=3c-iBn73dDE',
         level: 'Intermediate • Demo result',
-        duration: '31 min',
-        platform: 'YouTube'
+        duration: '31 min'
       }
     ];
   };
@@ -138,25 +166,65 @@ export const RoadmapScreen: React.FC<RoadmapScreenProps> = ({
   const [resources, setResources] = useState<YouTubeResource[]>(getResourcesForSkill(activeSkill));
   const [_resourceSource, setResourceSource] = useState<string>('curated');
 
-  React.useEffect(() => {
+  const loadResources = useCallback((skill: string) => {
     let isMounted = true;
-    import('../services/apiClient').then(({ apiClient }) => {
-      apiClient.searchYouTube(activeSkill, targetRole).then(res => {
-        if (isMounted && res && res.data && res.data.videos && res.data.videos.length >= 2) {
-          const mapped: YouTubeResource[] = res.data.videos.slice(0, 2).map((v, i) => ({
-            id: v.id,
-            title: v.title,
-            level: v.level || (i === 0 ? 'Beginner • Live result' : 'Intermediate • Live result'),
-            duration: v.duration || (i === 0 ? '42 min' : '31 min'),
-            platform: 'YouTube'
-          }));
-          setResources(mapped);
-          setResourceSource(res.meta.isFallback ? 'curated_fallback' : 'youtube_live');
-        }
-      }).catch(() => {});
-    });
+    setResourcesLoading(true);
+    import('../services/apiClient')
+      .then(({ apiClient }) =>
+        apiClient.searchYouTube(skill, targetRole).then(res => {
+          if (!isMounted) return;
+          if (res && res.ok !== false && res.data && Array.isArray(res.data.videos) && res.data.videos.length > 0) {
+            const mapped: YouTubeResource[] = res.data.videos.slice(0, 2).map((v: any, i: number) => ({
+              id: v.id || v.videoId || `fallback-${i}`,
+              videoId: isEmbeddableYouTubeId(v.videoId) ? v.videoId : '',
+              title: v.title || `${skill} tutorial`,
+              channelTitle: v.channelTitle || 'YouTube',
+              thumbnailUrl: typeof v.thumbnailUrl === 'string' ? v.thumbnailUrl : '',
+              videoUrl: v.url || `https://www.youtube.com/results?search_query=${encodeURIComponent(`${skill} tutorial`)}`,
+              level: v.level || (i === 0 ? 'Beginner • Live result' : 'Intermediate • Live result'),
+              duration: v.duration || (i === 0 ? '42 min' : '31 min')
+            }));
+            if (mapped.length > 0) {
+              setResources(mapped);
+              setResourceSource(res.meta.isFallback ? 'curated_fallback' : 'youtube_live');
+            }
+          }
+        })
+      )
+      .catch(err => {
+        console.warn('[RoadmapScreen] Learning-resource fetch failed, keeping curated fallback:',
+          err instanceof Error ? err.message : err);
+      })
+      .finally(() => {
+        if (isMounted) setResourcesLoading(false);
+      });
     return () => { isMounted = false; };
-  }, [activeSkill, targetRole]);
+  }, [targetRole]);
+
+  React.useEffect(() => {
+    const cancel = loadResources(activeSkill);
+    return cancel;
+  }, [activeSkill, loadResources]);
+
+  // Escape closes the video player modal
+  useEffect(() => {
+    if (!selectedVideo) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setSelectedVideo(null);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [selectedVideo]);
+
+  const openVideo = (item: YouTubeResource) => {
+    // Only open a real embed when a validated video ID exists.
+    if (isEmbeddableYouTubeId(item.videoId)) {
+      setSelectedVideo(item);
+    } else {
+      // No real video known — open the genuine YouTube search URL in a new tab.
+      window.open(item.videoUrl || 'https://www.youtube.com/results?search_query=tutorial', '_blank', 'noopener,noreferrer') as unknown as void;
+    }
+  };
 
   return (
     <div
@@ -210,6 +278,7 @@ export const RoadmapScreen: React.FC<RoadmapScreenProps> = ({
 
       {/* Top Navigation Bar (Figma Node 44:490) */}
       <header
+        className="screen-header-bar"
         style={{
           position: 'relative',
           zIndex: 1,
@@ -309,6 +378,7 @@ export const RoadmapScreen: React.FC<RoadmapScreenProps> = ({
 
       {/* Main Content Container (988px width matching Figma layout) */}
       <main
+        className="screen-main-card-box"
         style={{
           position: 'relative',
           zIndex: 1,
@@ -336,6 +406,7 @@ export const RoadmapScreen: React.FC<RoadmapScreenProps> = ({
           </div>
           <h1
             id="page-title"
+            className="responsive-screen-title"
             style={{
               fontSize: '38px',
               fontWeight: 700,
@@ -363,6 +434,7 @@ export const RoadmapScreen: React.FC<RoadmapScreenProps> = ({
 
         {/* Two-Column Grid: Timeline (620px) + Resources (342px) -> Total 988px */}
         <div
+          className="roadmap-content-grid"
           style={{
             width: '100%',
             display: 'grid',
@@ -374,6 +446,7 @@ export const RoadmapScreen: React.FC<RoadmapScreenProps> = ({
           {/* Left Column: Roadmap Timeline (Figma Node 50:44 - 620 x 500px, r=22px) */}
           <section
             id="roadmap-timeline-panel"
+            className="roadmap-panel-item"
             style={{
               width: '620px',
               height: '500px',
@@ -557,6 +630,7 @@ export const RoadmapScreen: React.FC<RoadmapScreenProps> = ({
           {/* Right Column: Learning Resources (Figma Node 50:77 - 342 x 500px, r=22px) */}
           <section
             id="learning-resources-panel"
+            className="roadmap-panel-item"
             style={{
               width: '342px',
               height: '500px',
@@ -598,14 +672,37 @@ export const RoadmapScreen: React.FC<RoadmapScreenProps> = ({
               </div>
 
               {/* YouTube Cards List */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              <div
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '14px',
+                  opacity: resourcesLoading ? 0.75 : 1,
+                  transition: 'opacity 0.2s ease'
+                }}
+                aria-busy={resourcesLoading || undefined}
+              >
+                {resources.length === 0 && !resourcesLoading && (
+                  <div style={{ fontSize: '13px', color: '#666670', padding: '8px 4px' }}>
+                    No learning resources found for this skill yet.
+                  </div>
+                )}
                 {resources.map((item, idx) => {
                   const isHovered = hoveredCard === item.id;
                   return (
                     <div
                       key={item.id}
                       id={`youtube-resource-${idx + 1}`}
-                      onClick={() => setSelectedVideo(item.title)}
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => openVideo(item)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          openVideo(item);
+                        }
+                      }}
+                      aria-label={`Play video ${item.title}${item.channelTitle ? ` by ${item.channelTitle}` : ''}`}
                       onMouseEnter={() => setHoveredCard(item.id)}
                       onMouseLeave={() => setHoveredCard(null)}
                       style={{
@@ -624,7 +721,7 @@ export const RoadmapScreen: React.FC<RoadmapScreenProps> = ({
                         boxShadow: isHovered ? '0 8px 20px rgba(91, 80, 232, 0.12)' : 'none'
                       }}
                     >
-                      {/* Video Thumbnail (108 x 74px, r=12px, bg #5B50E8 with play button) */}
+                      {/* Video Thumbnail (108 x 74px, r=12px) — actual API thumbnail */}
                       <div
                         id={`thumbnail-${idx + 1}`}
                         style={{
@@ -636,12 +733,29 @@ export const RoadmapScreen: React.FC<RoadmapScreenProps> = ({
                           alignItems: 'center',
                           justifyContent: 'center',
                           flexShrink: 0,
-                          position: 'relative'
+                          position: 'relative',
+                          overflow: 'hidden'
                         }}
                       >
-                        {/* White circle 30x30 */}
+                        {/* Actual thumbnail image when a real video is known */}
+                        {item.thumbnailUrl && isEmbeddableYouTubeId(item.videoId) ? (
+                          <img
+                            id={`thumbnail-img-${idx + 1}`}
+                            src={item.thumbnailUrl}
+                            alt={`Video thumbnail for ${item.title}`}
+                            loading="lazy"
+                            style={{
+                              width: '108px',
+                              height: '74px',
+                              objectFit: 'cover'
+                            }}
+                          />
+                        ) : null}
+                        {/* White play circle overlay (30x30, Figma Node 50:86) */}
                         <div
+                          aria-hidden="true"
                           style={{
+                            position: 'absolute',
                             width: '30px',
                             height: '30px',
                             borderRadius: '50%',
@@ -700,7 +814,9 @@ export const RoadmapScreen: React.FC<RoadmapScreenProps> = ({
                             marginBottom: '10px'
                           }}
                         >
-                          {item.level}
+                          {item.channelTitle && item.channelTitle !== 'YouTube Search'
+                            ? `${item.channelTitle} • ${item.level}`
+                            : item.level}
                         </div>
 
                         {/* Pills: Duration + Platform */}
@@ -737,7 +853,7 @@ export const RoadmapScreen: React.FC<RoadmapScreenProps> = ({
                               justifyContent: 'center'
                             }}
                           >
-                            {item.platform}
+                            {'YouTube'}
                           </span>
                         </div>
                       </div>
@@ -771,28 +887,138 @@ export const RoadmapScreen: React.FC<RoadmapScreenProps> = ({
                   margin: 0
                 }}
               >
-                Demo resources shown here. Live YouTube search will populate these cards during implementation.
+                Click a card to play its tutorial. Live YouTube results appear when the API is available.
               </p>
             </div>
           </section>
         </div>
 
-        {/* Optional demo video selection indicator or Step 10 transition CTA */}
+        {/* Inline Video Player Modal — real YouTube embed for validated video IDs */}
         {selectedVideo && (
           <div
-            id="selected-video-toast"
+            id="video-player-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-label={`Video player: ${selectedVideo.title}`}
+            onClick={() => setSelectedVideo(null)}
             style={{
-              marginTop: '20px',
-              padding: '12px 20px',
-              borderRadius: '12px',
-              backgroundColor: '#FFFFFF',
-              border: '1px solid #5B50E8',
-              fontSize: '14px',
-              color: '#5B50E8',
-              fontWeight: 500
+              position: 'fixed',
+              inset: 0,
+              backgroundColor: 'rgba(23, 23, 27, 0.72)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              zIndex: 10000,
+              padding: '24px',
+              boxSizing: 'border-box'
             }}
           >
-            ▶ Selected demo tutorial: <strong>{selectedVideo}</strong>
+            <div
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                width: 'min(860px, 100%)',
+                backgroundColor: '#FFFFFF',
+                borderRadius: '22px',
+                padding: '18px',
+                boxSizing: 'border-box',
+                boxShadow: '0 24px 60px rgba(20, 13, 46, 0.35)'
+              }}
+            >
+              {/* Player header: title + channel + close control */}
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  justifyContent: 'space-between',
+                  gap: '12px',
+                  marginBottom: '12px'
+                }}
+              >
+                <div>
+                  <div
+                    id="video-modal-title"
+                    style={{ fontSize: '15px', fontWeight: 600, color: '#17171B', lineHeight: '20px' }}
+                  >
+                    {selectedVideo.title}
+                  </div>
+                  <div
+                    id="video-modal-channel"
+                    style={{ fontSize: '13px', color: '#666670', marginTop: '2px' }}
+                  >
+                    {selectedVideo.channelTitle}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  id="btn-close-video-player"
+                  onClick={() => setSelectedVideo(null)}
+                  aria-label="Close video player"
+                  style={{
+                    width: '34px',
+                    height: '34px',
+                    borderRadius: '50%',
+                    border: '1px solid #E0DEEB',
+                    backgroundColor: '#FFFFFF',
+                    color: '#17171B',
+                    fontSize: '15px',
+                    cursor: 'pointer',
+                    flexShrink: 0
+                  }}
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* Working YouTube embed from validated 11-char video ID */}
+              <div
+                style={{
+                  position: 'relative',
+                  width: '100%',
+                  paddingBottom: '56.25%',
+                  borderRadius: '14px',
+                  overflow: 'hidden',
+                  backgroundColor: '#17171B'
+                }}
+              >
+                <iframe
+                  id="video-embed-frame"
+                  src={`https://www.youtube.com/embed/${selectedVideo.videoId}?autoplay=1&rel=0`}
+                  title={selectedVideo.title}
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                  allowFullScreen
+                  referrerPolicy="strict-origin-when-cross-origin"
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    height: '100%',
+                    border: 'none'
+                  }}
+                />
+              </div>
+
+              {/* Accessible link to the original YouTube video (new tab, noopener) */}
+              <div style={{ marginTop: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: '12px', color: '#666670' }}>
+                  Playing from YouTube — press Escape or click outside to close.
+                </span>
+                <a
+                  id="video-modal-open-youtube"
+                  href={`https://www.youtube.com/watch?v=${selectedVideo.videoId}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    fontSize: '13px',
+                    fontWeight: 600,
+                    color: '#5B50E8',
+                    textDecoration: 'none'
+                  }}
+                >
+                  Open on YouTube ↗
+                </a>
+              </div>
+            </div>
           </div>
         )}
 
